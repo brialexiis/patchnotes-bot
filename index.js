@@ -29,6 +29,7 @@ async function traducir(texto) {
 }
 
 client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
   if (message.channelId !== CANAL_ORIGEN) return;
   if (!message.embeds.length) return;
 
