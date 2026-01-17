@@ -56,4 +56,4 @@ client.on("messageCreate", async (message) => {
   canal.send({ embeds: [embed] });
 });
 
-client.login(TOKEN);
+client.login(DISCORD_TOKEN);
