@@ -9,9 +9,11 @@ const client = new Client({
   ]
 });
 
-const TOKEN = process.env.TOKEN;
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CANAL_ORIGEN = process.env.CANAL_ORIGEN;
 const CANAL_DESTINO = process.env.CANAL_DESTINO;
+
+client.login(DISCORD_TOKEN)
 
 async function traducir(texto) {
   if (!texto) return null;
