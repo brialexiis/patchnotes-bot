@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const translate = require('@vitalets/google-translate-api');
 
 const client = new Client({
   intents: [
