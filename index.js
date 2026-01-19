@@ -20,21 +20,33 @@ console.log("TOKEN:", DISCORD_TOKEN ? "CARGADO" : "VACIO");
 
 // ================= TRANSLATE =================
 async function traducir(texto) {
-  if (!texto || typeof texto !== "string") return null;
+  if (!texto || typeof texto !== 'string') return texto;
+
+  // Limpia bullets y caracteres que rompen LibreTranslate
+  const limpio = texto
+    .replace(/•/g, '-')
+    .replace(/\u2022/g, '-');
 
   try {
-    const res = await axios.post("https://libretranslate.de/translate", {
-      q: texto,
-      source: "en",
-      target: "es",
-      format: "text"
-    });
+    const res = await axios.post(
+      'https://libretranslate.de/translate',
+      {
+        q: limpio,
+        source: 'auto',
+        target: 'es',
+        format: 'text'
+      },
+      { timeout: 10000 }
+    );
 
-    return typeof res.data.translatedText === "string"
-      ? res.data.translatedText
-      : texto;
+    if (!res.data || !res.data.translatedText) {
+      console.log('LibreTranslate no devolvió texto');
+      return texto;
+    }
+
+    return res.data.translatedText;
   } catch (err) {
-    console.log("Error traduciendo, se usa original");
+    console.log('Error traduciendo, dejo original');
     return texto;
   }
 }
