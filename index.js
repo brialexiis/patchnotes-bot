@@ -26,10 +26,9 @@ async function traducir(texto) {
 }
 
 client.on('messageCreate', async (message) => {
-  // 🔴 ANTILOOP REAL
-  if (message.author.bot) return;
-  if (message.webhookId) return;
+  // 🛑 Antiloop correcto (permite bots y webhooks)
   if (message.channelId === CANAL_DESTINO) return;
+  if (message.author.id === client.user.id) return;
 
   if (message.channelId !== CANAL_ORIGEN) return;
   if (!message.embeds || message.embeds.length === 0) return;
