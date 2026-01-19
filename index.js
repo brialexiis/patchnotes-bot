@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const axios = require('axios');
+const translate = require('@vitalets/google-translate-api');
 
 const client = new Client({
   intents: [
@@ -13,25 +13,12 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CANAL_ORIGEN = process.env.CANAL_ORIGEN;
 const CANAL_DESTINO = process.env.CANAL_DESTINO;
 
-// delay anti rate-limit
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
 async function traducir(texto) {
   if (!texto || typeof texto !== 'string') return texto;
 
   try {
-    const res = await axios.post('https://libretranslate.de/translate', {
-      q: texto,
-      source: 'auto',
-      target: 'es',
-      format: 'text'
-    }, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 10000
-    });
-
-    await sleep(300); // evita que la API devuelva el mismo texto
-    return res.data.translatedText || texto;
+    const res = await translate(texto, { to: 'es' });
+    return res.text;
   } catch (e) {
     console.error('Error traducción:', e.message);
     return texto;
@@ -39,14 +26,16 @@ async function traducir(texto) {
 }
 
 client.on('messageCreate', async (message) => {
-  // 🔴 CLAVE: evitar loop
+  // 🔴 ANTILOOP REAL
   if (message.author.bot) return;
+  if (message.webhookId) return;
+  if (message.channelId === CANAL_DESTINO) return;
 
   if (message.channelId !== CANAL_ORIGEN) return;
   if (!message.embeds || message.embeds.length === 0) return;
 
   const canalDestino = await client.channels.fetch(CANAL_DESTINO);
-  const embedsFinales = [];
+  const embedsTraducidos = [];
 
   for (const e of message.embeds) {
     const embed = new EmbedBuilder();
@@ -79,11 +68,11 @@ client.on('messageCreate', async (message) => {
       });
     }
 
-    embedsFinales.push(embed);
+    embedsTraducidos.push(embed);
   }
 
-  if (embedsFinales.length) {
-    await canalDestino.send({ embeds: embedsFinales });
+  if (embedsTraducidos.length) {
+    await canalDestino.send({ embeds: embedsTraducidos });
   }
 });
 
