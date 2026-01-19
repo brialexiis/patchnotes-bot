@@ -1,7 +1,6 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
-const axios = require("axios");
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const axios = require('axios');
 
-// ================= CLIENT =================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -10,117 +9,82 @@ const client = new Client({
   ]
 });
 
-// ================= ENV =================
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CANAL_ORIGEN = process.env.CANAL_ORIGEN;
 const CANAL_DESTINO = process.env.CANAL_DESTINO;
 
-// Debug clave
-console.log("TOKEN:", DISCORD_TOKEN ? "CARGADO" : "VACIO");
+// delay anti rate-limit
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ================= TRANSLATE =================
 async function traducir(texto) {
   if (!texto || typeof texto !== 'string') return texto;
 
-  // Limpia bullets y caracteres que rompen LibreTranslate
-  const limpio = texto
-    .replace(/•/g, '-')
-    .replace(/\u2022/g, '-');
-
   try {
-    const res = await axios.post(
-      'https://libretranslate.de/translate',
-      {
-        q: limpio,
-        source: 'auto',
-        target: 'es',
-        format: 'text'
-      },
-      { timeout: 10000 }
-    );
+    const res = await axios.post('https://libretranslate.de/translate', {
+      q: texto,
+      source: 'auto',
+      target: 'es',
+      format: 'text'
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 10000
+    });
 
-    if (!res.data || !res.data.translatedText) {
-      console.log('LibreTranslate no devolvió texto');
-      return texto;
-    }
-
-    return res.data.translatedText;
-  } catch (err) {
-    console.log('Error traduciendo, dejo original');
+    await sleep(300); // evita que la API devuelva el mismo texto
+    return res.data.translatedText || texto;
+  } catch (e) {
+    console.error('Error traducción:', e.message);
     return texto;
   }
 }
 
-// ================= LISTENER =================
-client.on("messageCreate", async (message) => {
-  try {
-    if (message.author.bot) return;
-    if (message.channelId !== CANAL_ORIGEN) return;
-    if (!message.embeds || message.embeds.length === 0) return;
+client.on('messageCreate', async (message) => {
+  // 🔴 CLAVE: evitar loop
+  if (message.author.bot) return;
 
-    const canalDestino = await client.channels.fetch(CANAL_DESTINO);
+  if (message.channelId !== CANAL_ORIGEN) return;
+  if (!message.embeds || message.embeds.length === 0) return;
 
-    for (const e of message.embeds) {
-      const embed = new EmbedBuilder();
+  const canalDestino = await client.channels.fetch(CANAL_DESTINO);
+  const embedsFinales = [];
 
-      if (typeof e.color === "number") {
-        embed.setColor(e.color);
+  for (const e of message.embeds) {
+    const embed = new EmbedBuilder();
+
+    if (e.color) embed.setColor(e.color);
+    if (e.title) embed.setTitle(await traducir(e.title));
+    if (e.description) embed.setDescription(await traducir(e.description));
+
+    if (e.fields?.length) {
+      for (const f of e.fields) {
+        embed.addFields({
+          name: await traducir(f.name),
+          value: await traducir(f.value),
+          inline: f.inline ?? false
+        });
       }
-
-      if (e.title) {
-        const titulo = await traducir(e.title);
-        if (titulo) embed.setTitle(titulo);
-      }
-
-      if (e.description) {
-        const desc = await traducir(e.description);
-        if (desc) embed.setDescription(desc);
-      }
-
-      if (Array.isArray(e.fields)) {
-        for (const f of e.fields) {
-          const name = await traducir(f.name);
-          const value = await traducir(f.value);
-
-          if (name && value) {
-            embed.addFields({
-              name,
-              value,
-              inline: f.inline ?? false
-            });
-          }
-        }
-      }
-
-      if (e.image?.url) embed.setImage(e.image.url);
-      if (e.thumbnail?.url) embed.setThumbnail(e.thumbnail.url);
-
-      if (e.footer?.text) {
-        const footerText = await traducir(e.footer.text);
-        if (footerText) {
-          embed.setFooter({
-            text: footerText,
-            iconURL: e.footer.iconURL || null
-          });
-        }
-      }
-
-      if (e.author?.name) {
-        const authorName = await traducir(e.author.name);
-        if (authorName) {
-          embed.setAuthor({
-            name: authorName,
-            iconURL: e.author.iconURL || null
-          });
-        }
-      }
-
-      await canalDestino.send({ embeds: [embed] });
     }
-  } catch (err) {
-    console.error("Error procesando embed:", err);
+
+    if (e.image?.url) embed.setImage(e.image.url);
+    if (e.thumbnail?.url) embed.setThumbnail(e.thumbnail.url);
+
+    if (e.footer?.text) {
+      embed.setFooter({ text: await traducir(e.footer.text) });
+    }
+
+    if (e.author?.name) {
+      embed.setAuthor({
+        name: await traducir(e.author.name),
+        iconURL: e.author.iconURL ?? undefined
+      });
+    }
+
+    embedsFinales.push(embed);
+  }
+
+  if (embedsFinales.length) {
+    await canalDestino.send({ embeds: embedsFinales });
   }
 });
 
-// ================= LOGIN =================
 client.login(DISCORD_TOKEN);
