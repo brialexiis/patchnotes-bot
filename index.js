@@ -54,6 +54,7 @@ async function traducir(texto) {
 // ================= LISTENER =================
 client.on("messageCreate", async (message) => {
   try {
+    if (message.author.bot) return;
     if (message.channelId !== CANAL_ORIGEN) return;
     if (!message.embeds || message.embeds.length === 0) return;
 
