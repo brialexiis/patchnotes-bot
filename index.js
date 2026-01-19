@@ -1,5 +1,8 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const translate = require('@vitalets/google-translate-api');
+
+// fetch compatible con Node 18 (GitHub Actions)
+const fetch = (...args) =>
+  import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const client = new Client({
   intents: [
@@ -13,31 +16,43 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CANAL_ORIGEN = process.env.CANAL_ORIGEN;
 const CANAL_DESTINO = process.env.CANAL_DESTINO;
 
+// 🔁 Traducción línea por línea (patch notes friendly)
 async function traducir(texto) {
   if (!texto || typeof texto !== 'string') return texto;
 
   const lineas = texto.split('\n');
-  const traducidas = [];
+  const resultado = [];
 
   for (const linea of lineas) {
     if (linea.trim() === '') {
-      traducidas.push('');
+      resultado.push('');
       continue;
     }
 
     try {
-      const res = await translate(linea, { to: 'es' });
-      traducidas.push(res.text);
-    } catch {
-      traducidas.push(linea);
+      const res = await fetch('https://translate.argosopentech.com/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: linea,
+          source: 'auto',
+          target: 'es'
+        })
+      });
+
+      const data = await res.json();
+      resultado.push(data.translatedText || linea);
+    } catch (e) {
+      console.error('Error traducción:', e.message);
+      resultado.push(linea);
     }
   }
 
-  return traducidas.join('\n');
+  return resultado.join('\n');
 }
 
 client.on('messageCreate', async (message) => {
-  // 🛑 Antiloop correcto (permite bots y webhooks)
+  // 🛑 Antiloop real (permite PathBot / webhooks)
   if (message.channelId === CANAL_DESTINO) return;
   if (message.author.id === client.user.id) return;
 
