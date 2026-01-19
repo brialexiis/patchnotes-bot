@@ -1,8 +1,5 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-
-// fetch compatible con Node 18 (GitHub Actions)
-const fetch = (...args) =>
-  import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const client = new Client({
   intents: [
@@ -16,64 +13,60 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CANAL_ORIGEN = process.env.CANAL_ORIGEN;
 const CANAL_DESTINO = process.env.CANAL_DESTINO;
 
-// 🔁 Traducción línea por línea (patch notes friendly)
 async function traducir(texto) {
-  if (!texto || typeof texto !== 'string') return texto;
+  if (!texto) return texto;
 
-  const lineas = texto.split('\n');
-  const resultado = [];
+  const limpio = String(texto).trim();
+  if (limpio.length < 2) return texto;
 
-  for (const linea of lineas) {
-    if (linea.trim() === '') {
-      resultado.push('');
-      continue;
-    }
+  try {
+    const res = await fetch('https://libretranslate.de/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        q: limpio,
+        source: 'en',
+        target: 'es',
+        format: 'text'
+      })
+    });
 
-    try {
-      const res = await fetch('https://translate.argosopentech.com/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          q: linea,
-          source: 'auto',
-          target: 'es'
-        })
-      });
-
-      const data = await res.json();
-      resultado.push(data.translatedText || linea);
-    } catch (e) {
-      console.error('Error traducción:', e.message);
-      resultado.push(linea);
-    }
+    const data = await res.json();
+    return data.translatedText || texto;
+  } catch (e) {
+    console.error('Error traduciendo:', e.message);
+    return texto;
   }
-
-  return resultado.join('\n');
 }
 
 client.on('messageCreate', async (message) => {
-  // 🛑 Antiloop real (permite PathBot / webhooks)
+  // 🛑 Antiloop definitivo
   if (message.channelId === CANAL_DESTINO) return;
   if (message.author.id === client.user.id) return;
 
   if (message.channelId !== CANAL_ORIGEN) return;
-  if (!message.embeds || message.embeds.length === 0) return;
+  if (!message.embeds?.length) return;
 
   const canalDestino = await client.channels.fetch(CANAL_DESTINO);
-  const embedsTraducidos = [];
 
   for (const e of message.embeds) {
     const embed = new EmbedBuilder();
 
     if (e.color) embed.setColor(e.color);
-    if (e.title) embed.setTitle(await traducir(e.title));
-    if (e.description) embed.setDescription(await traducir(e.description));
+
+    if (e.title) {
+      embed.setTitle(await traducir(String(e.title)));
+    }
+
+    if (e.description) {
+      embed.setDescription(await traducir(String(e.description)));
+    }
 
     if (e.fields?.length) {
       for (const f of e.fields) {
         embed.addFields({
-          name: await traducir(f.name),
-          value: await traducir(f.value),
+          name: await traducir(String(f.name)),
+          value: await traducir(String(f.value)),
           inline: f.inline ?? false
         });
       }
@@ -83,21 +76,19 @@ client.on('messageCreate', async (message) => {
     if (e.thumbnail?.url) embed.setThumbnail(e.thumbnail.url);
 
     if (e.footer?.text) {
-      embed.setFooter({ text: await traducir(e.footer.text) });
+      embed.setFooter({
+        text: await traducir(String(e.footer.text))
+      });
     }
 
     if (e.author?.name) {
       embed.setAuthor({
-        name: await traducir(e.author.name),
+        name: await traducir(String(e.author.name)),
         iconURL: e.author.iconURL ?? undefined
       });
     }
 
-    embedsTraducidos.push(embed);
-  }
-
-  if (embedsTraducidos.length) {
-    await canalDestino.send({ embeds: embedsTraducidos });
+    await canalDestino.send({ embeds: [embed] });
   }
 });
 
