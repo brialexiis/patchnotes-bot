@@ -1,6 +1,7 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const axios = require('axios');
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+const axios = require("axios");
 
+// ================= CLIENT =================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -9,77 +10,104 @@ const client = new Client({
   ]
 });
 
-// Variables de entorno
+// ================= ENV =================
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CANAL_ORIGEN = process.env.CANAL_ORIGEN;
 const CANAL_DESTINO = process.env.CANAL_DESTINO;
 
-// Función de traducción
+// Debug clave
+console.log("TOKEN:", DISCORD_TOKEN ? "CARGADO" : "VACIO");
+
+// ================= TRANSLATE =================
 async function traducir(texto) {
-  if (!texto) return null;
+  if (!texto || typeof texto !== "string") return null;
 
   try {
-    const res = await axios.post('https://libretranslate.de/translate', {
+    const res = await axios.post("https://libretranslate.de/translate", {
       q: texto,
-      source: 'en',
-      target: 'es',
-      format: 'text'
+      source: "en",
+      target: "es",
+      format: "text"
     });
 
-    return res.data.translatedText;
+    return typeof res.data.translatedText === "string"
+      ? res.data.translatedText
+      : texto;
   } catch (err) {
-    console.error('Error traduciendo:', err.message);
-    return texto; // fallback
+    console.log("Error traduciendo, se usa original");
+    return texto;
   }
 }
 
-// Evento principal
-client.on('messageCreate', async (message) => {
-  // Solo canal origen
-  if (message.channelId !== CANAL_ORIGEN) return;
+// ================= LISTENER =================
+client.on("messageCreate", async (message) => {
+  try {
+    if (message.channelId !== CANAL_ORIGEN) return;
+    if (!message.embeds || message.embeds.length === 0) return;
 
-  // Solo mensajes con embeds
-  if (!message.embeds || message.embeds.length === 0) return;
+    const canalDestino = await client.channels.fetch(CANAL_DESTINO);
 
-  const canalDestino = await client.channels.fetch(CANAL_DESTINO);
-  const embedsTraducidos = [];
+    for (const e of message.embeds) {
+      const embed = new EmbedBuilder();
 
-  for (const e of message.embeds) {
-    const embed = new EmbedBuilder();
-
-    if (e.color) embed.setColor(e.color);
-    if (e.title) embed.setTitle(await traducir(e.title));
-    if (e.description) embed.setDescription(await traducir(e.description));
-
-    if (e.fields && e.fields.length > 0) {
-      for (const f of e.fields) {
-        embed.addFields({
-          name: await traducir(f.name),
-          value: await traducir(f.value),
-          inline: f.inline ?? false
-        });
+      if (typeof e.color === "number") {
+        embed.setColor(e.color);
       }
-    }
 
-    if (e.image?.url) embed.setImage(e.image.url);
-    if (e.thumbnail?.url) embed.setThumbnail(e.thumbnail.url);
-    if (e.footer?.text) {
-      embed.setFooter({ text: await traducir(e.footer.text) });
-    }
-    if (e.author?.name) {
-      embed.setAuthor({
-        name: await traducir(e.author.name),
-        iconURL: e.author.iconURL ?? null
-      });
-    }
+      if (e.title) {
+        const titulo = await traducir(e.title);
+        if (titulo) embed.setTitle(titulo);
+      }
 
-    embedsTraducidos.push(embed);
-  }
+      if (e.description) {
+        const desc = await traducir(e.description);
+        if (desc) embed.setDescription(desc);
+      }
 
-  if (embedsTraducidos.length > 0) {
-    await canalDestino.send({ embeds: embedsTraducidos });
+      if (Array.isArray(e.fields)) {
+        for (const f of e.fields) {
+          const name = await traducir(f.name);
+          const value = await traducir(f.value);
+
+          if (name && value) {
+            embed.addFields({
+              name,
+              value,
+              inline: f.inline ?? false
+            });
+          }
+        }
+      }
+
+      if (e.image?.url) embed.setImage(e.image.url);
+      if (e.thumbnail?.url) embed.setThumbnail(e.thumbnail.url);
+
+      if (e.footer?.text) {
+        const footerText = await traducir(e.footer.text);
+        if (footerText) {
+          embed.setFooter({
+            text: footerText,
+            iconURL: e.footer.iconURL || null
+          });
+        }
+      }
+
+      if (e.author?.name) {
+        const authorName = await traducir(e.author.name);
+        if (authorName) {
+          embed.setAuthor({
+            name: authorName,
+            iconURL: e.author.iconURL || null
+          });
+        }
+      }
+
+      await canalDestino.send({ embeds: [embed] });
+    }
+  } catch (err) {
+    console.error("Error procesando embed:", err);
   }
 });
 
-// Login
+// ================= LOGIN =================
 client.login(DISCORD_TOKEN);
