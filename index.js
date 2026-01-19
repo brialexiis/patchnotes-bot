@@ -16,13 +16,24 @@ const CANAL_DESTINO = process.env.CANAL_DESTINO;
 async function traducir(texto) {
   if (!texto || typeof texto !== 'string') return texto;
 
-  try {
-    const res = await translate(texto, { to: 'es' });
-    return res.text;
-  } catch (e) {
-    console.error('Error traducción:', e.message);
-    return texto;
+  const lineas = texto.split('\n');
+  const traducidas = [];
+
+  for (const linea of lineas) {
+    if (linea.trim() === '') {
+      traducidas.push('');
+      continue;
+    }
+
+    try {
+      const res = await translate(linea, { to: 'es' });
+      traducidas.push(res.text);
+    } catch {
+      traducidas.push(linea);
+    }
   }
+
+  return traducidas.join('\n');
 }
 
 client.on('messageCreate', async (message) => {
