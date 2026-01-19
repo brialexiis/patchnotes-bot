@@ -1,17 +1,16 @@
 {
   "name": "patchnotes-bot",
   "version": "1.0.0",
-  "description": "Discord bot que traduce y clona embeds de patch notes al español",
+  "description": "Bot que clona embeds, los traduce a español y los reenvía",
   "main": "index.js",
-  "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": "18.x"
   },
   "dependencies": {
-    "discord.js": "^14.15.3",
-    "axios": "^1.6.8"
+    "axios": "^1.6.8",
+    "discord.js": "^14.15.3"
   }
 }
